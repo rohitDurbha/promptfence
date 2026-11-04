@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Tests
+        run: pytest -q --cov=promptfence --cov-report=term-missing
+
+      - name: Type check
+        run: mypy
+
+      - name: Benchmark gate
+        # The offline fixtures need no network, so the gate runs on every push.
+        # A rule change that starts blocking benign traffic fails the build.
+        run: |
+          python -m benchmarks.run_bench --source fixtures \
+            --fail-over-asr 0.0 --fail-over-fpr 0.0
+
+      - name: Ablation without the canary rule
+        # Canary tokens are planted artefacts. This proves the behavioural
+        # rules detect the attacks on their own.
+        run: |
+          python -m benchmarks.run_bench --source fixtures \
+            --disable-rule PF008 --fail-over-asr 0.0 --fail-over-fpr 0.0
