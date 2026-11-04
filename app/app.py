@@ -10,7 +10,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+# Works both in the repo (app/app.py, src/ one level up) and on a Space, where
+# the deploy script flattens app.py and src/ into the root.
+_HERE = Path(__file__).resolve().parent
+for _candidate in (_HERE.parent / "src", _HERE / "src"):
+    if (_candidate / "promptfence").is_dir():
+        sys.path.insert(0, str(_candidate))
+        break
 
 import gradio as gr  # noqa: E402
 

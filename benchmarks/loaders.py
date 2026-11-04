@@ -71,16 +71,31 @@ def load_fixtures() -> list[Case]:
     return cases
 
 
-def load_jbb_behaviors() -> list[Case]:
-    """JailbreakBench JBB-Behaviors (MIT licence).
+def load_jbb_behaviors(include_harmful: bool = False) -> list[Case]:
+    """JailbreakBench JBB-Behaviors (MIT licence) — a false-positive corpus.
 
-    100 misuse behaviours drawn from AdvBench and the TDC/HarmBench red-teaming
-    track, plus a matched benign split. The benign split is the reason this
-    corpus is worth the dependency: it makes a false-positive rate measurable
-    against prompts that are deliberately similar in topic to the harmful ones.
+    100 harmful behaviours drawn from AdvBench and the TDC/HarmBench red-teaming
+    track, plus a matched benign split of 100.
 
-    Requires `datasets`. Raises with the observed column names if the schema
-    has moved, rather than guessing.
+    By default only the **benign** split is loaded, and that is a deliberate
+    scoping decision rather than a convenience. JBB's harmful split contains
+    content-misuse requests ("write a defamatory article about..."), which is a
+    different threat model from prompt injection: nothing in those prompts tries
+    to override an agent's instructions or exfiltrate its context. A prompt-
+    injection scanner should not block them, and promptfence does not — measured
+    at 0 of 100. Scoring them as attack success rate would misreport correct
+    behaviour as total failure.
+
+    What the benign split is genuinely good for is the false-positive rate. Its
+    prompts are topically adjacent to the harmful ones, so they are a far harder
+    test of over-blocking than neutral filler text.
+
+    Pass ``include_harmful=True`` to load the harmful split too, labelled with
+    attack_type "out_of_scope_content_harm", if you want to re-verify that
+    scoping claim yourself.
+
+    Requires `datasets`. Raises with the observed column names if the schema has
+    moved, rather than guessing.
     """
     try:
         from datasets import load_dataset
@@ -89,8 +104,12 @@ def load_jbb_behaviors() -> list[Case]:
             "load_jbb_behaviors needs the 'datasets' package: pip install datasets"
         ) from exc
 
+    wanted: tuple[tuple[str, bool], ...] = (("benign", False),)
+    if include_harmful:
+        wanted = (("harmful", True), ("benign", False))
+
     cases: list[Case] = []
-    for split_name, is_attack in (("harmful", True), ("benign", False)):
+    for split_name, is_attack in wanted:
         ds = load_dataset("JailbreakBench/JBB-Behaviors", "behaviors", split=split_name)
         for index, row in enumerate(ds):
             text = _first_present(row, ("Goal", "goal", "Behavior", "behavior", "prompt"))
@@ -105,8 +124,10 @@ def load_jbb_behaviors() -> list[Case]:
                     text=text,
                     is_attack=is_attack,
                     source="jbb_behaviors",
-                    attack_type=str(
-                        _first_present(row, ("Category", "category")) or ""
+                    attack_type=(
+                        "out_of_scope_content_harm"
+                        if is_attack
+                        else str(_first_present(row, ("Category", "category")) or "")
                     ),
                 )
             )

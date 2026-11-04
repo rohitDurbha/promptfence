@@ -19,7 +19,8 @@ from .loaders import Case, load_fixtures, load_injecagent, load_jbb_behaviors
 
 TITLES = {
     "fixtures": "promptfence — bundled fixtures",
-    "jbb": "promptfence — JailbreakBench JBB-Behaviors",
+    "jbb": "promptfence — JailbreakBench JBB-Behaviors (benign split, false-positive corpus)",
+    "jbb-scope": "promptfence — JBB-Behaviors scope check (harmful split is out of scope)",
     "injecagent": "promptfence — InjecAgent",
 }
 
@@ -29,6 +30,8 @@ def gather(source: str, path: str | None) -> list[Case]:
         return load_fixtures()
     if source == "jbb":
         return load_jbb_behaviors()
+    if source == "jbb-scope":
+        return load_jbb_behaviors(include_harmful=True)
     if source == "injecagent":
         if not path:
             raise SystemExit("--source injecagent requires --path to the downloaded file")

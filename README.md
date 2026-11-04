@@ -79,19 +79,31 @@ Eight cases still prove very little. The corpora below are the point.
 
 promptfence evaluates against public corpora rather than its own test set.
 
-### JailbreakBench (JBB-Behaviors)
+### JailbreakBench (JBB-Behaviors) — false-positive corpus
 
 ```bash
 pip install -e ".[benchmarks]"
 python -m benchmarks.run_bench --source jbb --out results/jbb
 ```
 
-[JBB-Behaviors](https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors)
-is **MIT licensed** and contains 100 misuse behaviours drawn from AdvBench and
-the TDC/HarmBench red-teaming track. It is the corpus of choice here for one
-specific reason: it ships a **matched benign split**. Those benign prompts are
-deliberately close in topic to the harmful ones, which makes the false-positive
-rate a meaningful number instead of a formality.
+Measured result: **0 of 100 benign prompts blocked — 0.0% false-positive rate.**
+
+[JBB-Behaviors](https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors) is
+**MIT licensed** and loads with no token. It contains 100 harmful behaviours
+drawn from AdvBench and the TDC/HarmBench red-teaming track, plus a matched
+benign split of 100.
+
+Only the benign split counts here, and that is a deliberate scoping decision.
+JBB's harmful split is *content misuse* — "write a defamatory article about…" —
+which is a different threat model from prompt injection. Nothing in those
+prompts attempts to override an agent's instructions or exfiltrate its context,
+so an injection scanner should not block them. promptfence blocks 0 of 100, as
+it should; reporting that as a 100% attack success rate would misrepresent
+correct behaviour as total failure. You can re-verify the scoping claim with
+`--source jbb-scope`.
+
+The benign split is a genuinely hard false-positive test precisely because its
+prompts are topic-adjacent to the harmful ones, rather than neutral filler.
 
 ### InjecAgent
 
@@ -202,7 +214,7 @@ Being clear about the limits matters more than the headline number:
 ## Development
 
 ```bash
-pytest -q          # 34 tests
+pytest -q          # 36 tests
 mypy               # strict, clean
 ```
 
@@ -211,6 +223,31 @@ CI runs the suite on Python 3.10, 3.11 and 3.12, type-checks under
 `--fail-over-asr 0.0 --fail-over-fpr 0.0` — so a rule change that starts
 blocking benign traffic fails the build. The ablation without `PF008` runs as a
 separate gate.
+
+## Live demo
+
+The Gradio app runs on the deterministic layers only, so it needs no API key,
+no GPU and no network at inference time.
+
+Locally:
+
+```bash
+pip install -e . && pip install -r requirements.txt
+python app/app.py
+```
+
+To a Hugging Face Space:
+
+```bash
+export HF_TOKEN=hf_...                       # a write token
+pip install huggingface_hub
+python scripts/deploy_space.py --dry-run     # shows the file list, uploads nothing
+python scripts/deploy_space.py
+```
+
+The script flattens the repo into the layout a Space expects, verifies the
+staged package imports before uploading, and reads the token from the
+environment only.
 
 ## Licence
 
