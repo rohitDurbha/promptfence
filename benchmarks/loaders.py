@@ -208,3 +208,91 @@ def load_jsonl_corpus(path: str | Path, *, is_attack: bool, source: str) -> list
             )
         )
     return cases
+
+
+def load_deepset_prompt_injections(split: str | None = None) -> list[Case]:
+    """deepset/prompt-injections (Apache-2.0) — the primary ASR + FPR corpus.
+
+    662 examples across both splits, labelled 1 for injection and 0 for benign:
+    263 injections and 399 benign. This is the corpus that actually measures
+    attack success rate for this threat model, because every positive example
+    is a genuine attempt to override instructions or extract context, and the
+    negatives are ordinary requests.
+
+    It is also multilingual in places, which is a known weakness of the
+    English-only rules and shows up honestly in the numbers.
+
+    Pass ``split`` to get "train" or "test" alone. Rules are developed against
+    train and reported on test, so the headline numbers are not fitted to the
+    cases they describe.
+    """
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise RuntimeError(
+            "load_deepset_prompt_injections needs 'datasets': pip install datasets"
+        ) from exc
+
+    cases: list[Case] = []
+    ds = load_dataset("deepset/prompt-injections")
+    wanted = [split] if split else list(ds)
+    for split_name in wanted:
+        for index, row in enumerate(ds[split_name]):
+            text = _first_present(row, ("text", "prompt"))
+            if text is None:
+                raise RuntimeError(
+                    f"No text column in deepset/prompt-injections {split_name!r}; "
+                    f"columns seen: {sorted(row)}"
+                )
+            label = row.get("label")
+            is_attack = str(label) == "1"
+            cases.append(
+                Case(
+                    case_id=f"deepset-{split_name}-{index:04d}",
+                    text=text,
+                    is_attack=is_attack,
+                    source="deepset_prompt_injections",
+                    attack_type="prompt_injection" if is_attack else "",
+                )
+            )
+    return cases
+
+
+def load_gandalf_ignore_instructions() -> list[Case]:
+    """Lakera/gandalf_ignore_instructions (MIT) — real in-the-wild injections.
+
+    1,000 prompts players actually submitted to Lakera's Gandalf game while
+    trying to extract a hidden password, filtered by embedding similarity to
+    "ignore all previous instructions" and de-duplicated.
+
+    Attack-class only, so pair it with a benign corpus to get a false-positive
+    rate. Lakera notes the selection was automatic and a few samples may not be
+    true injections, so treat the attack success rate here as approximate.
+    """
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise RuntimeError(
+            "load_gandalf_ignore_instructions needs 'datasets': pip install datasets"
+        ) from exc
+
+    cases: list[Case] = []
+    ds = load_dataset("Lakera/gandalf_ignore_instructions")
+    for split_name in ds:
+        for index, row in enumerate(ds[split_name]):
+            text = _first_present(row, ("text", "prompt"))
+            if text is None:
+                raise RuntimeError(
+                    f"No text column in gandalf_ignore_instructions {split_name!r}; "
+                    f"columns seen: {sorted(row)}"
+                )
+            cases.append(
+                Case(
+                    case_id=f"gandalf-{split_name}-{index:04d}",
+                    text=text,
+                    is_attack=True,
+                    source="gandalf_ignore_instructions",
+                    attack_type="in_the_wild_injection",
+                )
+            )
+    return cases

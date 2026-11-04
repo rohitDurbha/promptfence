@@ -47,17 +47,34 @@ INPUT_RULES: tuple[Rule, ...] = (
         "PF001",
         "instruction_override",
         Severity.HIGH,
-        r"ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier|foregoing)\s+"
-        r"(?:instructions?|prompts?|rules?|directives?)",
+        r"(?:ignore|disregard|forget|neglect|discard|override|erase)\s+"
+        r"(?:(?:all|any|about|the|your|every)\s+){0,3}"
+        r"(?:previous|prior|above|preceding|earlier|foregoing|last|former)\s+"
+        r"(?:instructions?|prompts?|rules?|directives?|orders?|tasks?|assignments?|"
+        r"commands?|information|text|messages?|context|guidelines?)"
+        # "Forget everything before that" / "forget everything we discussed"
+        r"|(?:ignore|disregard|forget|erase)\s+(?:all|everything|everthing)"
+        r"(?:\s+(?:before|beforehand|prior|above|we\s+discussed|that|else))?"
+        r"|(?:ignore|disregard)\s+(?:the\s+)?above\b"
+        r"|(?:remove|leave|put)\s+all\s+(?:the\s+)?previous\s+"
+        r"(?:tasks?|information|instructions?)\s+(?:out\s+of|behind|aside)"
+        # German: the corpus is bilingual and the rules must be too.
+        r"|(?:vergiss|ignoriere|missachte)\s+"
+        r"(?:(?:alle|alles|jede|die|deine)\s+)?"
+        r"(?:vorherigen?|vorangehenden?|obigen?|bisherigen?)?\s*"
+        r"(?:anweisungen|aufgaben|anfragen|befehle|informationen|regeln)?"
+        r"|vergiss\s+alles\b",
         "Attempts to void earlier instructions by asserting a newer imperative.",
     ),
     _rule(
         "PF002",
         "system_prompt_exfiltration",
         Severity.HIGH,
-        r"(?:print|reveal|repeat|show|output|disclose|dump)\s+(?:me\s+)?(?:your\s+|the\s+)?"
-        r"(?:full\s+|entire\s+|complete\s+|exact\s+)?(?:system\s+prompt|initial\s+instructions?|"
-        r"system\s+message)",
+        r"(?:print|reveal|repeat|show|output|disclose|dump|tell|give|display)\s+"
+        r"(?:me\s+)?(?:all\s+)?(?:of\s+)?(?:your|the)\s+"
+        r"(?:full\s+|entire\s+|complete\s+|exact\s+|original\s+)?"
+        r"(?:system\s+prompt|initial\s+instructions?|system\s+message|"
+        r"prompt\s+text|prompt\s+texts|prompts?\b|instructions?\b)",
         "Requests the verbatim system prompt, often framed as verification or compliance.",
     ),
     _rule(
@@ -65,11 +82,21 @@ INPUT_RULES: tuple[Rule, ...] = (
         "persona_override",
         Severity.HIGH,
         r"you\s+are\s+(?:now\s+)?(?:DAN|AIM|STAN|DUDE)\b"
-        r"|\bact\s+as\s+(?:DAN|an?\s+unrestricted)"
+        r"|\b(?:pretend|imagine)\s+(?:that\s+)?you\s+(?:are|were)\b"
+        r"|\bact\s+as\s+(?:a|an|the)?\s*\w"
+        r"|\brole[\s-]?play\s+as\b"
+        r"|\bfrom\s+now\s+on,?\s+you\s+(?:are|will\s+be)\b"
+        r"|\byou\s+are\s+now\s+\w"
+        r"|\bnow\s+you\s+are\s+\w"
+        r"|\bjetzt\s+bist\s+du\b"
+        r"|\b(?:du\s+bist\s+(?:jetzt|nun))\b"
+        r"|\bverhalte\s+dich\s+wie\b"
+        r"|\btu\s+so,?\s+als\b"
         r"|\bdeveloper\s+mode\s+enabled"
         r"|\bdebug\s+mode\b"
         r"|\b(?:unrestricted|unfiltered|jailbroken)\s+mode\b",
-        "Tries to swap the assistant's identity for one without restrictions.",
+        "Tries to swap the assistant's identity, whether for a named jailbreak "
+        "persona or an arbitrary character.",
     ),
     _rule(
         "PF004",
@@ -110,6 +137,50 @@ INPUT_RULES: tuple[Rule, ...] = (
         r"|\bverification\s+token\b",
         "Asks for a specific literal string to be echoed, the usual proof-of-compromise "
         "step in an injection payload.",
+    ),
+    _rule(
+        "PF010",
+        "fictional_scaffold",
+        Severity.MEDIUM,
+        r"(?:are|is)\s+(?:two\s+)?(?:actors?|characters?)\b"
+        r"|(?:people|persons)\s+who\s+are\s+acting\b"
+        r"|in\s+a\s+(?:film|movie|play|story|scene|novel)\s+about\b"
+        r"|there\s+is\s+a\s+scene\s+where\b"
+        r"|(?:sind|ist)\s+(?:zwei\s+)?schauspieler\b"
+        r"|in\s+einem\s+film\s+über\b",
+        "Wraps the real request in a fictional frame so the model answers as a "
+        "character rather than as itself.",
+    ),
+    _rule(
+        "PF011",
+        "praise_then_pivot",
+        Severity.LOW,
+        r"(?:excellent|great|fantastic|wonderful|perfect|well\s+done|congratulations|"
+        r"simply\s+great|very\s+good|good\s+job|nicely\s+done)"
+        r"[!.,]*\s*(?:performance|work|job)?[!.,]*\s*"
+        r"(?:but\s+)?(?:now|next|then)\b"
+        r"|that(?:'s| is)\s+(?:enough|done|ok)\.?\s*(?:but\s+)?now\b"
+        r"|(?:sehr\s+gut|ausgezeichnet|wunderbar|toll)[!.,]*\s*(?:jetzt|nun)\b",
+        "Opens with praise to establish rapport, then pivots to a substituted "
+        "task. A social-engineering shape rather than a keyword.",
+    ),
+    _rule(
+        "PF009",
+        "task_reset",
+        Severity.MEDIUM,
+        r"forget\s+(?:about\s+)?(?:all\s+)?(?:the\s+)?(?:tasks?|assignments?|questions?)"
+        r"|(?:now\s+)?(?:new|different)\s+tasks?\s+(?:follow|begin|start)"
+        r"|focus\s+on\s+your\s+new\s+task"
+        r"|(?:let'?s\s+|we\s+(?:will|'ll)\s+)?start\s+over\s+with\s+a\s+new\s+task"
+        r"|that(?:'s| is)\s+enough\.?\s+now\b"
+        r"|stop\.?\s*[-—]\s*I\s+urgently"
+        r"|(?:now\s+)?(?:further|more|new)\s+(?:tasks?|instructions?)\s+"
+        r"(?:are\s+)?(?:follow|followed|follows)\b"
+        r"|konzentriere\s+dich\s+(?:jetzt\s+)?auf\s+(?:deine|die)\s+neue"
+        r"|achtung\s*[-—]\s*stopp"
+        r"|attention\s*[-—]\s*stop",
+        "Declares the earlier task finished and substitutes a new one, a framing "
+        "that carries many real injections without naming instructions at all.",
     ),
     _rule(
         "PF008",

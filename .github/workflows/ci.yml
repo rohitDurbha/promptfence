@@ -19,6 +19,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -30,16 +34,23 @@ jobs:
       - name: Type check
         run: mypy
 
+      - name: Exported rules are current
+        # web/rules.json feeds the static demo. Fail if the Python rules moved
+        # without regenerating it.
+        run: python scripts/export_rules.py --check
+
+      - name: Python/JavaScript parity
+        # The demo re-implements scanning in JS. Two implementations drift
+        # unless something checks, so compare verdicts, rules and spans.
+        run: python scripts/check_parity.py
+
       - name: Benchmark gate
-        # The offline fixtures need no network, so the gate runs on every push.
-        # A rule change that starts blocking benign traffic fails the build.
+        # Offline fixtures need no network, so this runs on every push.
         run: |
           python -m benchmarks.run_bench --source fixtures \
             --fail-over-asr 0.0 --fail-over-fpr 0.0
 
       - name: Ablation without the canary rule
-        # Canary tokens are planted artefacts. This proves the behavioural
-        # rules detect the attacks on their own.
         run: |
           python -m benchmarks.run_bench --source fixtures \
             --disable-rule PF008 --fail-over-asr 0.0 --fail-over-fpr 0.0

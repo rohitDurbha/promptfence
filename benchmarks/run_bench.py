@@ -15,10 +15,21 @@ from pathlib import Path
 
 from promptfence import Defense, Outcome, render_markdown, summarize
 
-from .loaders import Case, load_fixtures, load_injecagent, load_jbb_behaviors
+from .loaders import (
+    Case,
+    load_deepset_prompt_injections,
+    load_fixtures,
+    load_gandalf_ignore_instructions,
+    load_injecagent,
+    load_jbb_behaviors,
+)
 
 TITLES = {
     "fixtures": "promptfence — bundled fixtures",
+    "deepset": "promptfence — deepset/prompt-injections, all splits (ASR + FPR)",
+    "deepset-train": "promptfence — deepset/prompt-injections train (development split)",
+    "deepset-test": "promptfence — deepset/prompt-injections test (held out)",
+    "gandalf": "promptfence — Lakera Gandalf in-the-wild injections (ASR)",
     "jbb": "promptfence — JailbreakBench JBB-Behaviors (benign split, false-positive corpus)",
     "jbb-scope": "promptfence — JBB-Behaviors scope check (harmful split is out of scope)",
     "injecagent": "promptfence — InjecAgent",
@@ -28,6 +39,14 @@ TITLES = {
 def gather(source: str, path: str | None) -> list[Case]:
     if source == "fixtures":
         return load_fixtures()
+    if source == "deepset":
+        return load_deepset_prompt_injections()
+    if source == "deepset-train":
+        return load_deepset_prompt_injections(split="train")
+    if source == "deepset-test":
+        return load_deepset_prompt_injections(split="test")
+    if source == "gandalf":
+        return load_gandalf_ignore_instructions()
     if source == "jbb":
         return load_jbb_behaviors()
     if source == "jbb-scope":
